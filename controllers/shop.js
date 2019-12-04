@@ -32,6 +32,7 @@ exports.getProduct = (req, res, _next) => {
 };
 
 exports.getIndex = (req, res, _next) => {
+  console.log(req.session.user)
   Product.find()
     .then(products => {
       res.render('shop/index', {
@@ -47,7 +48,7 @@ exports.getIndex = (req, res, _next) => {
 };
 
 exports.getCart = (req, res, _next) => {
-  req.user
+  req.session.user
     .populate('cart.items.productId')
     .execPopulate()
     .then(user => {
@@ -66,7 +67,7 @@ exports.postCart = (req, res, _next) => {
   const prodId = req.body.productId;
   Product.findById(prodId)
     .then(product => {
-      return req.user.addToCart(product);
+      return req.session.user.addToCart(product);
     })
     .then(_result => {
       // console.log(result);
@@ -76,7 +77,7 @@ exports.postCart = (req, res, _next) => {
 
 exports.postCartDeleteProduct = (req, res, _next) => {
   const prodId = req.body.productId;
-  req.user
+  req.session.user
     .removeFromCart(prodId)
     .then(_result => {
       res.redirect('/cart');
@@ -85,7 +86,7 @@ exports.postCartDeleteProduct = (req, res, _next) => {
 };
 
 exports.postOrder = (req, res, _next) => {
-  req.user
+  req.session.user
     .populate('cart.items.productId')
     .execPopulate()
     .then(user => {
@@ -94,15 +95,15 @@ exports.postOrder = (req, res, _next) => {
       });
       const order = new Order({
         user: {
-          name: req.user.name,
-          userId: req.user
+          name: req.session.user.name,
+          userId: req.session.user
         },
         products: products
       });
       return order.save();
     })
     .then(_result => {
-      return req.user.clearCart();
+      return req.session.user.clearCart();
     })
     .then(() => {
       res.redirect('/orders');
@@ -111,7 +112,7 @@ exports.postOrder = (req, res, _next) => {
 };
 
 exports.getOrders = (req, res, _next) => {
-  Order.find({ 'user.userId': req.user._id })
+  Order.find({ 'user.userId': req.session.user._id })
     .then(orders => {
       res.render('shop/orders', {
         path: '/orders',

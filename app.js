@@ -4,11 +4,17 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const session = require('express-session');
+const MongoDbStore = require('connect-mongodb-session')(session);
+const secrets = require('./config/secret');
 
 const errorController = require('./controllers/error');
 const User = require('./models/user');
 
 const app = express();
+const store = new MongoDbStore({
+  uri: secrets.mongoConnectionString,
+  collection: 'sessions'
+})
 
 app.set('view engine', 'ejs');
 app.set('views', 'views');
@@ -16,7 +22,6 @@ app.set('views', 'views');
 const adminRoutes = require('./routes/admin');
 const shopRoutes = require('./routes/shop');
 const authRoutes = require('./routes/auth');
-const secrets = require('./config/secret');
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -24,18 +29,21 @@ app.use(
   session({
     secret: secrets.sessionSecret,
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false, store
   })
 );
-app.use((req, _res, next) => {
-  User.findById('5de6bf8414ee0a0a3ff5aabc')
-    .then(user => {
-      req.user = user;
-      next();
-    })
-    .catch(err => console.log(err));
-});
-
+app.use((req, res, next) => {
+  if (req.session.isLoggedIn) {
+    User.findById(req.session.user._id)
+      .then(user => {
+        req.session.user = user;
+        next()
+      })
+      .catch(err => console.log(err));
+  } else {
+    next();
+  }
+})
 app.use('/admin', adminRoutes);
 app.use(shopRoutes);
 app.use(authRoutes);
