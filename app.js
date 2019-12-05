@@ -14,7 +14,7 @@ const app = express();
 const store = new MongoDbStore({
   uri: secrets.mongoConnectionString,
   collection: 'sessions'
-})
+});
 
 app.set('view engine', 'ejs');
 app.set('views', 'views');
@@ -29,21 +29,22 @@ app.use(
   session({
     secret: secrets.sessionSecret,
     resave: false,
-    saveUninitialized: false, store
+    saveUninitialized: false,
+    store
   })
 );
 app.use((req, res, next) => {
-  if (req.session.isLoggedIn) {
+  if (req.session.user) {
     User.findById(req.session.user._id)
       .then(user => {
         req.session.user = user;
-        next()
+        next();
       })
       .catch(err => console.log(err));
   } else {
     next();
   }
-})
+});
 app.use('/admin', adminRoutes);
 app.use(shopRoutes);
 app.use(authRoutes);

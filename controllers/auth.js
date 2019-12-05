@@ -14,7 +14,9 @@ exports.postLogin = (req, res, _next) => {
     .then(user => {
       req.session.isLoggedIn = true;
       req.session.user = user;
-      res.redirect('/');
+      req.session.save(() => {
+        res.redirect('/');
+      });
     })
     .catch(err => console.log(err));
 };
@@ -22,5 +24,5 @@ exports.postLogin = (req, res, _next) => {
 exports.postLogout = (req, res, _next) => {
   req.session.destroy(() => {
     res.redirect('/');
-  })
+  });
 };
