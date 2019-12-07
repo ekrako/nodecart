@@ -24,15 +24,12 @@ exports.getProduct = (req, res, _next) => {
         product: product,
         pageTitle: product.title,
         path: '/products',
-        isAuthenticated: req.session.isLoggedIn,
-        csrfToken: req.csrfToken()
       });
     })
     .catch(err => console.log(err));
 };
 
 exports.getIndex = (req, res, _next) => {
-  console.log(req.session.user)
   Product.find()
     .then(products => {
       res.render('shop/index', {
