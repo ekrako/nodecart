@@ -6,7 +6,7 @@ const User = require('../models/user');
 const nodemailer = require('nodemailer');
 const sendgridTransport = require('nodemailer-sendgrid-transport');
 const secrets = require('../config/secret');
-
+const { validationResult } = require('express-validator');
 
 const transporter = nodemailer.createTransport(sendgridTransport({
   auth: {
@@ -21,7 +21,10 @@ exports.getLogin = (req, res, _next) => {
     isAuthenticated: req.session.isLoggedIn,
     errorMessage: req.flash('error'),
     message: req.flash('message'),
-    csrfToken: req.csrfToken()
+    csrfToken: req.csrfToken(),
+    email: null,
+    password: null,
+    validationErrors: []
   });
   // console.log(req.session);
 };
@@ -33,7 +36,11 @@ exports.getSignup = (req, res, _next) => {
     isAuthenticated: false,
     errorMessage: req.flash('error'),
     message: req.flash('message'),
-    csrfToken: req.csrfToken()
+    csrfToken: req.csrfToken(),
+    email: null,
+    password: null,
+    confirmPassword: null,
+    validationErrors: []
   });
 };
 
@@ -44,7 +51,9 @@ exports.getReset = (req, res, _next) => {
     isAuthenticated: req.session.isLoggedIn,
     errorMessage: req.flash('error'),
     message: req.flash('message'),
-    csrfToken: req.csrfToken()
+    csrfToken: req.csrfToken(),
+    email: null,
+    validationErrors: []
   });
 };
 
@@ -67,6 +76,10 @@ exports.getNewpassword = (req, res, _next) => {
       message: req.flash('message'),
       csrfToken: req.csrfToken(),
       userId: user._id.toString(),
+      token,
+      password: null,
+      confirmPassword: null,
+      validationErrors: []
     })
   }).catch(err => console.log(err));
 };
@@ -75,6 +88,19 @@ exports.getNewpassword = (req, res, _next) => {
 exports.postLogin = (req, res, _next) => {
   const email = req.body.email;
   const password = req.body.password;
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).render('auth/login', {
+      path: '/login',
+      pageTitle: 'Login',
+      isAuthenticated: false,
+      errorMessage: errors.array()[0].msg,
+      message: '',
+      csrfToken: req.csrfToken(),
+      email, password,
+      validationErrors: errors.array()
+    });
+  }
   User.findOne({ email }).then(user => {
     if (!user) {
       req.flash('error', 'Invalid User or Password');
@@ -87,8 +113,17 @@ exports.postLogin = (req, res, _next) => {
           req.session.user = user;
           return req.session.save(() => res.redirect('/'));
         }
-        req.flash('error', 'Invalid User or Password');
-        return res.redirect('/login');
+        return res.status(422).render('auth/login', {
+          path: '/login',
+          pageTitle: 'Login',
+          isAuthenticated: false,
+          errorMessage: 'Invalid User or Password',
+          message: '',
+          csrfToken: req.csrfToken(),
+          email, password,
+          validationErrors: errors.array()
+
+        });
       }).catch(err => console.log(err));
   }).catch(err => console.log(err));
 };
@@ -99,19 +134,26 @@ exports.postLogout = (req, res, _next) => {
   })
 };
 
-exports.postSignup = (req, res, next) => {
+exports.postSignup = (req, res, _next) => {
   const email = req.body.email;
   const password = req.body.password;
   const confirmPassword = req.body.confirmPassword;
-  if (password !== confirmPassword) {
-    req.flash('error', 'Password don not match');
-    return res.redirect('/signup');
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).render('auth/signup', {
+      path: '/signup',
+      pageTitle: 'Signup',
+      isAuthenticated: false,
+      errorMessage: errors.array()[0].msg,
+      message: '',
+      csrfToken: req.csrfToken(),
+      email, password, confirmPassword,
+      validationErrors: errors.array()
+    });
   }
-  User.findOne({ email }).then(userDoc => {
-    if (userDoc) {
-      return this.postLogin(req, res, next);
-    }
-    return bcrypt.hash(password, 12).then(hashedPassword => {
+
+  bcrypt.hash(password, 12)
+    .then(hashedPassword => {
       const user = new User({
         email,
         password: hashedPassword,
@@ -136,17 +178,25 @@ exports.postSignup = (req, res, next) => {
       }).catch(err => console.log(err));
       return req.session.save(() => res.redirect('/'));
     }).catch(err => console.log(err));
-  }).catch(err => console.log(err));
 };
 
 exports.postReset = (req, res, _next) => {
+  const errors = validationResult(req);
   const email = req.body.email;
 
+  if (!errors.isEmpty()) {
+    return res.status(422).render('auth/reset', {
+      path: '/reset',
+      pageTitle: 'Reset Password',
+      isAuthenticated: false,
+      errorMessage: errors.array()[0].msg,
+      message: '',
+      csrfToken: req.csrfToken(),
+      email,
+      validationErrors: errors.array()
+    });
+  }
   User.findOne({ email }).then(user => {
-    if (!user) {
-      req.flash('error', 'User not found');
-      return res.redirect('/reset');
-    }
     crypto.randomBytes(32, (err, buffer) => {
       if (err) {
         console.error(err);
@@ -184,10 +234,23 @@ exports.postNewpassword = (req, res, _next) => {
   const token = req.body.token;
   const password = req.body.password;
   const confirmPassword = req.body.confirmPassword;
-  if (password !== confirmPassword) {
-    req.flash('error', 'Passwords do not match');
-    return res.redirect(`/reset/${token}`);
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.render('auth/new-password', {
+      pageTitle: 'Update Password',
+      path: '/reset',
+      isAuthenticated: req.session.isLoggedIn,
+      errorMessage: errors.array()[0].msg,
+      message: req.flash('message'),
+      csrfToken: req.csrfToken(),
+      userId, password, confirmPassword, token,
+      validationErrors: errors.array()
+    })
   }
+  // if (password !== confirmPassword) {
+  //   req.flash('error', 'Passwords do not match');
+  //   return res.redirect(`/reset/${token}`);
+  // }
   User.findById(userId).then(user => {
     if (user.resetToken !== token) {
       req.flash('error', 'Token does not exist or have been used');
