@@ -8,8 +8,7 @@
 
     <main>
         <%- include('../includes/message.ejs') %>
-        <form class="login-form" action="/login" method="POST">
-
+        <form class="login-form" action="/signup" method="POST">
             <div class="form-control">
                 <label for="email">E-Mail</label>
                 <input class="<%= validationErrors.find(e=> e.param === 'email') ? 'invalid'  : '' %>" type="email"
@@ -20,11 +19,13 @@
                 <input class="<%= validationErrors.find(e=> e.param === 'password') ? 'invalid'  : '' %>"
                     type="password" name="password" id="password" value="<%= password %>">
             </div>
+            <div class="form-control">
+                <label for="confirmPassword">Confirm Password</label>
+                <input class="<%= validationErrors.find(e=> e.param === 'confirmPassword') ? 'invalid'  : '' %>"
+                    type="password" name="confirmPassword" id="confirmPassword" value="<%= confirmPassword %>">
+            </div>
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button class="btn" type="submit">Login</button>
+            <button class="btn" type="submit">Sign Up</button>
         </form>
-        <div class="centered">
-            <a href="/reset">Forgot your password</a>
-        </div>
     </main>
     <%- include('../includes/end.ejs') %>
