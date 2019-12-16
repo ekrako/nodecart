@@ -13,6 +13,8 @@ const errorController = require('./controllers/error');
 const User = require('./models/user');
 const isAuth = require('./middleware/is-auth');
 
+const multer = require('multer');
+
 const app = express();
 const store = new MongoDbStore({
   uri: secrets.mongoConnectionString,
@@ -26,9 +28,22 @@ app.set('views', 'views');
 const adminRoutes = require('./routes/admin');
 const shopRoutes = require('./routes/shop');
 const authRoutes = require('./routes/auth');
-
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads')
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.filename + '-' + Date.now() + '-' + file.originalname)
+  }
+})
+const fileFilter = (req, file, cb) => {
+  cb(null, file.mimetype === 'image/png' || file.mimetype === 'image/jpg' || file.mimetype === 'image/jpeg')
+}
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(multer({ storage, fileFilter }).single('image'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use(
   session({
     secret: secrets.sessionSecret,
