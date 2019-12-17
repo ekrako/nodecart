@@ -1,5 +1,8 @@
 const Product = require('../models/product');
 const Order = require('../models/order');
+const fs = require('fs');
+const path = require('path');
+const PDFDocument = require('pdfkit');
 
 exports.getProducts = (req, res, next) => {
   Product.find()
@@ -145,6 +148,55 @@ exports.getOrders = (req, res, next) => {
       });
     })
     .catch(err => {
+      const error = new Error(err);
+      error.httpStatusCode = 500;
+      next(error);
+    });
+
+};
+
+exports.getInvoice = (req, res, next) => {
+  const orderId = req.params.orderId;
+  Order.findById(orderId)
+    .then(order => {
+      if (!order) {
+        console.log('order not found ');
+        return next(new Error('order not found'));
+      }
+      if (order.user.userId.toString() !== req.session.user._id.toString()) {
+        console.log('order not found for the user');
+        return next(new Error('order not found for the user'));
+      }
+      const invoiceName = `invoice-${orderId}.pdf`;
+      const invoicePath = path.join('data', 'invoices', invoiceName);
+      const pdfDoc = new PDFDocument();
+      pdfDoc.pipe(fs.createWriteStream(invoicePath));
+      pdfDoc.pipe(res);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${invoiceName}"`);
+      pdfDoc.fontSize(26).text(`Invoice - ${orderId}`, { underline: true });
+      let totalPrice = 0;
+      order.products.forEach(item => {
+        pdfDoc.fontSize(14).text(`${item.product.title} (${item.quantity}) - ${item.product.price}$ `);
+        totalPrice += item.quantity * item.product.price;
+
+      });
+      pdfDoc.fontSize(20).text(`Total: $${totalPrice}`, { underline: true });
+
+      pdfDoc.end();
+      // fs.readFile(invoicePath, (err, data) => {
+      //   if (err) {
+      //     return next(err);
+      //   }
+
+      //   res.setHeader("Content-Type", "application/pdf");
+      //   res.setHeader("Content-Disposition", `inline; filename="${invoiceName}"`);
+      //   res.send(data);
+      // })
+      // const file = fs.createReadStream(invoicePath);
+
+      // file.pipe(res);
+    }).catch(err => {
       const error = new Error(err);
       error.httpStatusCode = 500;
       next(error);
