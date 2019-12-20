@@ -75,6 +75,9 @@ app.use((req, res, next) => {
         throw new Error(err);
       });
   }
+  else {
+    next()
+  }
 });
 
 
@@ -94,7 +97,9 @@ mongoose
   })
 
   .then(_result => {
-    app.listen(3000);
+    app.listen(3000, () => {
+      console.log('listening http://localhost:3000')
+    });
   })
   .catch(err => {
     console.log(err);
