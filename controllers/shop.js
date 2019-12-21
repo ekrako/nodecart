@@ -3,6 +3,9 @@ const Order = require('../models/order');
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const secrets = require('../config/secret');
+
+const stripe = require('stripe')(secrets.stripePrivateKy);
 
 const ITEMS_PER_PAGE = 1;
 
@@ -128,36 +131,36 @@ exports.postCartDeleteProduct = (req, res, next) => {
 
 };
 
-exports.postOrder = (req, res, next) => {
-  req.session.user
-    .populate('cart.items.productId')
-    .execPopulate()
-    .then(user => {
-      const products = user.cart.items.map(i => {
-        return { quantity: i.quantity, product: { ...i.productId._doc } };
-      });
-      const order = new Order({
-        user: {
-          email: req.session.user.email,
-          userId: req.session.user
-        },
-        products: products
-      });
-      return order.save();
-    })
-    .then(_result => {
-      return req.session.user.clearCart();
-    })
-    .then(() => {
-      res.redirect('/orders');
-    })
-    .catch(err => {
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      next(error);
-    });
+// exports.postOrder = (req, res, next) => {
+//   req.session.user
+//     .populate('cart.items.productId')
+//     .execPopulate()
+//     .then(user => {
+//       const products = user.cart.items.map(i => {
+//         return { quantity: i.quantity, product: { ...i.productId._doc } };
+//       });
+//       const order = new Order({
+//         user: {
+//           email: req.session.user.email,
+//           userId: req.session.user
+//         },
+//         products: products
+//       });
+//       return order.save();
+//     })
+//     .then(_result => {
+//       return req.session.user.clearCart();
+//     })
+//     .then(() => {
+//       res.redirect('/orders');
+//     })
+//     .catch(err => {
+//       const error = new Error(err);
+//       error.httpStatusCode = 500;
+//       next(error);
+//     });
 
-};
+// };
 
 exports.getOrders = (req, res, next) => {
   Order.find({ 'user.userId': req.session.user._id })
@@ -218,6 +221,83 @@ exports.getInvoice = (req, res, next) => {
 
       // file.pipe(res);
     }).catch(err => {
+      const error = new Error(err);
+      error.httpStatusCode = 500;
+      next(error);
+    });
+
+};
+
+
+exports.getCheckout = (req, res, next) => {
+  let products;
+  let totalSum = 0;
+  req.session.user
+    .populate('cart.items.productId')
+    .execPopulate()
+    .then(user => {
+      products = user.cart.items;
+      products.forEach(p => {
+        totalSum += p.quantity * p.productId.price;
+      });
+      return stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: products.map(p => {
+          return {
+            name: p.productId.title,
+            description: p.productId.description,
+            amount: p.productId.price * 100,
+            currency: 'usd',
+            quantity: p.quantity
+          }
+        }),
+        success_url: `${req.protocol}://${req.get('host')}/checkout/success`,
+        cancel_url: `${req.protocol}://${req.get('host')}/checkout/cancel`,
+      });
+    }).then(session => {
+      return res.render('shop/checkout', {
+        path: '/checkout',
+        pageTitle: 'Checkout',
+        products,
+        totalSum,
+        sessionId: session.id
+      });
+    })
+    .catch(err => {
+      console.log(err);
+      const error = new Error(err);
+
+
+      error.httpStatusCode = 500;
+      next(error);
+    });
+
+};
+
+exports.getCheckoutSuccess = (req, res, next) => {
+  req.session.user
+    .populate('cart.items.productId')
+    .execPopulate()
+    .then(user => {
+      const products = user.cart.items.map(i => {
+        return { quantity: i.quantity, product: { ...i.productId._doc } };
+      });
+      const order = new Order({
+        user: {
+          email: req.session.user.email,
+          userId: req.session.user
+        },
+        products: products
+      });
+      return order.save();
+    })
+    .then(_result => {
+      return req.session.user.clearCart();
+    })
+    .then(() => {
+      res.redirect('/orders');
+    })
+    .catch(err => {
       const error = new Error(err);
       error.httpStatusCode = 500;
       next(error);
